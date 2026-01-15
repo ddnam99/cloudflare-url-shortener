@@ -35,6 +35,7 @@ function normalizeUrl(input: string): string {
 }
 
 const BASE62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 function randomSlug(length: number = 6): string {
   let s = "";
   for (let i = 0; i < length; i++) {
@@ -81,6 +82,101 @@ function errorJson(message: string, status: number): Response {
   return json({ error: message }, status);
 }
 
+async function handleHome(): Promise<Response> {
+  return new Response(renderHtml(), { headers: { "content-type": "text/html" } });
+}
+
+async function handleShorten(bindings: EnvBindings, base: string, request: Request): Promise<Response> {
+  let body: ShortenRequestBody;
+  try {
+    body = (await request.json()) as ShortenRequestBody;
+  } catch {
+    return errorJson("Invalid JSON body", 400);
+  }
+  const originalUrl = body.url;
+  const customSlug = body.slug;
+  if (!originalUrl || !isValidUrl(originalUrl)) {
+    return errorJson("Invalid URL", 422);
+  }
+  if (customSlug && !isValidSlug(customSlug)) {
+    return errorJson("Invalid slug format", 422);
+  }
+  const normalized = normalizeUrl(originalUrl);
+  let slug = customSlug ?? randomSlug(6);
+  if (!customSlug) {
+    for (let i = 0; i < 5; i++) {
+      const exists = await bindings.KV.get(slug);
+      if (!exists) {
+        const inDb = await findBySlug(bindings, slug);
+        if (!inDb) break;
+      }
+      slug = randomSlug(6);
+    }
+    const collision = await findBySlug(bindings, slug);
+    if (collision) return errorJson("Slug collision, please retry", 409);
+  } else {
+    const existsDb = await findBySlug(bindings, slug);
+    if (existsDb) return errorJson("Slug already in use", 409);
+  }
+  const record: UrlRecord = {
+    id: crypto.randomUUID(),
+    slug,
+    url: normalized,
+    created_at: Date.now(),
+    clicks: 0,
+  };
+  await insertRecord(bindings, record);
+  await bindings.KV.put(slug, normalized, { expirationTtl: CACHE_TTL_SECONDS });
+  return json({ slug, url: normalized, short_url: base + slug }, 201);
+}
+
+async function handleApi(bindings: EnvBindings, pathname: string): Promise<Response> {
+  if (pathname === "/api/health") {
+    try {
+      const one = await bindings.DB.prepare("SELECT 1 as ok").first<{ ok: number }>();
+      const kvOk = await bindings.KV.get("__kv_health_check__");
+      return json({ d1: one?.ok === 1, kv: kvOk === null ? true : true });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      return errorJson(`Health check failed: ${message}`, 500);
+    }
+  }
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length === 2 && parts[0] === "api") {
+    const slug = parts[1]!;
+    try {
+      const rec = await findBySlug(bindings, slug);
+      if (!rec) return errorJson("Not found", 404);
+      return json(rec);
+    } catch {
+      return errorJson("Internal error", 500);
+    }
+  }
+  return errorJson("Invalid API route", 404);
+}
+
+async function handleRedirect(bindings: EnvBindings, slug: string): Promise<Response> {
+  const cached = await bindings.KV.get(slug);
+  const target = cached ?? (await (async () => {
+    try {
+      const rec = await findBySlug(bindings, slug);
+      return rec ? rec.url : null;
+    } catch {
+      return null;
+    }
+  })());
+  if (!target) {
+    return errorJson("Not found", 404);
+  }
+  if (!cached) {
+    await bindings.KV.put(slug, target, { expirationTtl: CACHE_TTL_SECONDS });
+  }
+  try {
+    await incrementClicks(bindings, slug);
+  } catch {}
+  return Response.redirect(target, 302);
+}
+
 export default {
   async fetch(request, env) {
     try {
@@ -90,132 +186,18 @@ export default {
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
 
-    if (method === "GET" && pathname === "/") {
-      return new Response(renderHtml(), { headers: { "content-type": "text/html" } });
-    }
+    if (method === "GET" && pathname === "/") return handleHome();
 
     if (method === "POST" && pathname === "/api/shorten") {
-      let body: ShortenRequestBody;
-      try {
-        body = (await request.json()) as ShortenRequestBody;
-      } catch {
-        return errorJson("Invalid JSON body", 400);
-      }
-      const originalUrl = body.url;
-      const customSlug = body.slug;
-      if (!originalUrl || !isValidUrl(originalUrl)) {
-        return errorJson("Invalid URL", 422);
-      }
-      if (customSlug && !isValidSlug(customSlug)) {
-        return errorJson("Invalid slug format", 422);
-      }
-      const normalized = normalizeUrl(originalUrl);
-
-      let slug = customSlug ?? randomSlug(6);
-      if (!customSlug) {
-        // try a few times to avoid collision
-        for (let i = 0; i < 5; i++) {
-          const exists = await bindings.KV.get(slug);
-          if (!exists) {
-            const inDb = await (async () => {
-              try {
-                return await findBySlug(bindings, slug);
-              } catch {
-                return null;
-              }
-            })();
-            if (!inDb) break;
-          }
-          slug = randomSlug(6);
-        }
-        const collision = await (async () => {
-          try {
-            return await findBySlug(bindings, slug);
-          } catch {
-            return null;
-          }
-        })();
-        if (collision) return errorJson("Slug collision, please retry", 409);
-      } else {
-        const existsDb = await (async () => {
-          try {
-            return await findBySlug(bindings, slug);
-          } catch {
-            return null;
-          }
-        })();
-        if (existsDb) return errorJson("Slug already in use", 409);
-      }
-
-      const record: UrlRecord = {
-        id: crypto.randomUUID(),
-        slug,
-        url: normalized,
-        created_at: Date.now(),
-        clicks: 0,
-      };
-      try {
-        await insertRecord(bindings, record);
-      } catch {
-        return errorJson("Failed to save record", 500);
-      }
-      await bindings.KV.put(slug, normalized);
-
       const base = `${url.protocol}//${url.host}/`;
-      return json({ slug, url: normalized, short_url: base + slug }, 201);
+      return handleShorten(bindings, base, request);
     }
 
-    if (method === "GET" && pathname.startsWith("/api/")) {
-      if (pathname === "/api/health") {
-        try {
-          const one = await bindings.DB.prepare("SELECT 1 as ok").first<{ ok: number }>();
-          const kvOk = await bindings.KV.get("__kv_health_check__");
-          return json({ d1: one?.ok === 1, kv: kvOk === null ? true : true });
-        } catch (e) {
-          const message = e instanceof Error ? e.message : "Unknown error";
-          return errorJson(`Health check failed: ${message}`, 500);
-        }
-      }
-      const parts = pathname.split("/").filter(Boolean);
-      if (parts.length === 2 && parts[0] === "api") {
-        const slug = parts[1]!;
-        const rec = await (async () => {
-          try {
-            return await findBySlug(bindings, slug);
-          } catch {
-            return null;
-          }
-        })();
-        if (!rec) return errorJson("Not found", 404);
-        return json(rec);
-      }
-      return errorJson("Invalid API route", 404);
-    }
+    if (method === "GET" && pathname.startsWith("/api/")) return handleApi(bindings, pathname);
 
     if (method === "GET" && pathname.length > 1) {
-      // do not require schema to serve cached redirects
       const slug = pathname.slice(1);
-      const cached = await bindings.KV.get(slug);
-      const target = cached ?? (await (async () => {
-        const rec = await (async () => {
-          try {
-            return await findBySlug(bindings, slug);
-          } catch {
-            return null;
-          }
-        })();
-        return rec ? rec.url : null;
-      })());
-      if (!target) {
-        return errorJson("Not found", 404);
-      }
-      if (!cached) {
-        await bindings.KV.put(slug, target);
-      }
-      try {
-        await incrementClicks(bindings, slug);
-      } catch {}
-      return Response.redirect(target, 302);
+      return handleRedirect(bindings, slug);
     }
 
     return errorJson("Route not found", 404);
