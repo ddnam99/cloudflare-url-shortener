@@ -11,8 +11,16 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_id": "151f7d9b-365f-41d7-83ed-0bf4eeef5086",
-			"database_name": "d1-template-database"
+			"database_id": "e7b6a09a-08ca-481a-9058-ad3b6d5fbcb6",
+			"database_name": "cloudflare-url-shortener-d1",
+			"preview_database_id": "78595c52-d62c-4cd8-acb4-9b21c3635f84"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "13f3b00ad4b24baeb259ed45eb961478",
+			"preview_id": "56820ac4171d43568a7df9545970292c"
 		}
 	],
 	"observability": {

@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS urls (
+  id TEXT PRIMARY KEY,
+  slug TEXT UNIQUE NOT NULL,
+  url TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  clicks INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_urls_slug ON urls(slug);

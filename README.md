@@ -1,59 +1,103 @@
-# Worker + D1 Database
+# Cloudflare URL Shortener (Workers + D1 + KV)
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/d1-template)
+A simple, production-friendly URL shortener built on Cloudflare Workers.  
+Uses D1 (SQL) as source of truth and KV for fast edge caching of slug→URL.
 
-![Worker + D1 Template Preview](https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/cb7cb0a9-6102-4822-633c-b76b7bb25900/public)
+## Features
+- Create short URLs with optional custom slug
+- 302 redirect by slug with KV cache fallback to D1
+- Click tracking (D1 column `clicks`)
+- Minimal HTML form at `/` that calls REST API
 
-<!-- dash-content-start -->
+## Requirements
+- Cloudflare account
+- Wrangler CLI
+- D1 database and KV namespace
 
-D1 is Cloudflare's native serverless SQL database ([docs](https://developers.cloudflare.com/d1/)). This project demonstrates using a Worker with a D1 binding to execute a SQL statement. A simple frontend displays the result of this query:
+## Configuration
+Update `wrangler.json` bindings:
+- D1:
+  - `"binding": "DB"`
+  - `"database_id": "<your d1 id>"`
+  - `"preview_database_id": "<your preview d1 id>"`
+- KV:
+  - `"binding": "KV"`
+  - `"id": "<your kv id>"`
+  - `"preview_id": "<your kv preview id>"`
 
-```SQL
-SELECT * FROM comments LIMIT 3;
+Example: see the current [wrangler.json](file:///Users/doubled/Desktop/cloudflare-url-shortener/wrangler.json).
+
+## Setup
+```bash
+npm install
+# or: yarn, pnpm
+
+# Create resources
+npx wrangler d1 create cloudflare-url-shortener-d1
+npx wrangler d1 info cloudflare-url-shortener-d1      # copy database_id
+npx wrangler d1 create cloudflare-url-shortener-d1-preview
+npx wrangler d1 info cloudflare-url-shortener-d1-preview  # copy preview_database_id
+
+npx wrangler kv namespace create cloudflare-url-shortener-kv
+npx wrangler kv namespace list                          # copy id
+npx wrangler kv namespace create cloudflare-url-shortener-kv --preview
+# copy preview_id from CLI output
+```
+Paste these IDs into `wrangler.json`.
+
+## Development
+Prefer remote preview to avoid local filesystem permission issues:
+```bash
+npm run dev
+# serves on http://localhost:<port> (shown by wrangler)
 ```
 
-The D1 database is initialized with a `comments` table and this data:
+Run migrations:
+```bash
+# apply to local dev
+wrangler d1 migrations apply DB --local
 
-```SQL
-INSERT INTO comments (author, content)
-VALUES
-    ('Kristian', 'Congrats!'),
-    ('Serena', 'Great job!'),
-    ('Max', 'Keep up the good work!')
-;
+# apply to preview database
+wrangler d1 migrations apply DB --remote --preview
+
+# apply to production database
+wrangler d1 migrations apply DB --remote
 ```
 
-> [!IMPORTANT]
-> When using C3 to create this project, select "no" when it asks if you want to deploy. You need to follow this project's [setup steps](https://github.com/cloudflare/templates/tree/main/d1-template#setup-steps) before deploying.
-
-<!-- dash-content-end -->
-
-## Getting Started
-
-Outside of this repo, you can start a new project with this template using [C3](https://developers.cloudflare.com/pages/get-started/c3/) (the `create-cloudflare` CLI):
-
-```
-npm create cloudflare@latest -- --template=cloudflare/templates/d1-template
+Health check:
+```bash
+curl http://localhost:<port>/api/health
+# {"d1":true,"kv":true}
 ```
 
-A live public deployment of this template is available at [https://d1-template.templates.workers.dev](https://d1-template.templates.workers.dev)
+## API
+- Create:
+  ```
+  POST /api/shorten
+  Content-Type: application/json
+  Body: { "url": "https://example.com/long/path", "slug": "optional-slug" }
+  Response: 201 { "slug": "...", "url": "...", "short_url": "https://<host>/<slug>" }
+  ```
+- Get details:
+  ```
+  GET /api/:slug
+  Response: 200 UrlRecord | 404
+  ```
+- Redirect:
+  ```
+  GET /:slug → 302 to original URL
+  ```
 
-## Setup Steps
+## Implementation Notes
+- D1 schema is created automatically on demand (`CREATE TABLE IF NOT EXISTS`).
+- KV is used as cache; on miss, Worker queries D1 and re-populates KV.
+- Slugs are Base62 length 6 by default; custom slugs must match `/^[A-Za-z0-9_-]{3,32}$/`.
 
-1. Install the project dependencies with a package manager of your choice:
-   ```bash
-   npm install
-   ```
-2. Create a [D1 database](https://developers.cloudflare.com/d1/get-started/) with the name "d1-template-database":
-   ```bash
-   npx wrangler d1 create d1-template-database
-   ```
-   ...and update the `database_id` field in `wrangler.json` with the new database ID.
-3. Run the following db migration to initialize the database (notice the `migrations` directory in this project):
-   ```bash
-   npx wrangler d1 migrations apply --remote d1-template-database
-   ```
-4. Deploy the project!
-   ```bash
-   npx wrangler deploy
-   ```
+## Deploy
+```bash
+npm run deploy
+```
+
+## Troubleshooting
+- Error 1101 (exception thrown): check `/api/health` and verify IDs in `wrangler.json`.
+- Local dev EPERM: use `wrangler dev --remote` (see `npm run dev`).

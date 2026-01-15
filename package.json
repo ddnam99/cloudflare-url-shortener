@@ -1,12 +1,9 @@
 {
-	"name": "d1-template",
-	"description": "Cloudflare's native serverless SQL database.",
+	"name": "cloudflare-url-shortener",
+	"description": "URL shortener on Cloudflare Workers using D1 + KV.",
 	"cloudflare": {
 		"label": "Worker + D1 Database",
-		"products": [
-			"Workers",
-			"D1"
-		],
+		"products": ["Workers", "D1", "KV"],
 		"categories": [
 			"storage"
 		],
@@ -24,8 +21,10 @@
 		"cf-typegen": "wrangler types",
 		"check": "tsc && wrangler deploy --dry-run",
 		"deploy": "wrangler deploy",
-		"dev": "pnpm seedLocalD1 && wrangler dev",
-		"predeploy": "wrangler d1 migrations apply DB --remote",
-		"seedLocalD1": "wrangler d1 migrations apply DB --local"
+		"dev": "wrangler dev --remote",
+		"dev:local": "wrangler dev",
+		"migrations:local": "wrangler d1 migrations apply DB --local",
+		"migrations:preview": "wrangler d1 migrations apply DB --remote --preview",
+		"migrations:prod": "wrangler d1 migrations apply DB --remote"
 	}
 }
