@@ -1,4 +1,7 @@
 import { renderHtml } from "./renderHtml";
+import { renderMetaHtml } from "./renderMeta";
+import { renderDisclaimerHtml } from "./renderDisclaimer";
+import { renderNotFoundHtml } from "./renderNotFound";
 
 type EnvBindings = {
   DB: D1Database;
@@ -82,6 +85,20 @@ function errorJson(message: string, status: number): Response {
   return json({ error: message }, status);
 }
 
+function base64ToUint8Array(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function serveFavicon(): Response {
+  const pngB64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/gbh3Y0AAAAASUVORK5CYII=";
+  const body = base64ToUint8Array(pngB64);
+  return new Response(body, { headers: { "content-type": "image/png", "cache-control": "public, max-age=31536000" } });
+}
+
 async function handleHome(): Promise<Response> {
   return new Response(renderHtml(), { headers: { "content-type": "text/html" } });
 }
@@ -155,7 +172,14 @@ async function handleApi(bindings: EnvBindings, pathname: string): Promise<Respo
   return errorJson("Invalid API route", 404);
 }
 
-async function handleRedirect(bindings: EnvBindings, slug: string): Promise<Response> {
+function isBot(request: Request): boolean {
+  const ua = request.headers.get("user-agent") || "";
+  const bots = ["Slackbot", "Twitterbot", "facebookexternalhit", "Discordbot", "WhatsApp", "TelegramBot", "LinkedInBot"];
+  for (const b of bots) if (ua.includes(b)) return true;
+  return request.method === "HEAD";
+}
+
+async function handleRedirect(bindings: EnvBindings, slug: string, shortBase: string, request: Request): Promise<Response> {
   const cached = await bindings.KV.get(slug);
   const target = cached ?? (await (async () => {
     try {
@@ -166,17 +190,37 @@ async function handleRedirect(bindings: EnvBindings, slug: string): Promise<Resp
     }
   })());
   if (!target) {
-    return errorJson("Not found", 404);
+    return new Response(renderNotFoundHtml(slug), { status: 404, headers: { "content-type": "text/html" } });
   }
   if (!cached) {
     await bindings.KV.put(slug, target, { expirationTtl: CACHE_TTL_SECONDS });
+  }
+  const shortUrl = `${shortBase}${slug}`;
+  const preview = new URL(request.url).searchParams.get("preview");
+  if (preview === "1" || isBot(request)) {
+    return new Response(renderMetaHtml(shortUrl, target, slug), { headers: { "content-type": "text/html" } });
+  }
+  return new Response(renderDisclaimerHtml(shortUrl, target, slug), { headers: { "content-type": "text/html" } });
+}
+
+async function handleGo(bindings: EnvBindings, slug: string, shortBase: string): Promise<Response> {
+  const cached = await bindings.KV.get(slug);
+  const target = cached ?? (await (async () => {
+    try {
+      const rec = await findBySlug(bindings, slug);
+      return rec ? rec.url : null;
+    } catch {
+      return null;
+    }
+  })());
+  if (!target) {
+    return new Response(renderNotFoundHtml(slug), { status: 404, headers: { "content-type": "text/html" } });
   }
   try {
     await incrementClicks(bindings, slug);
   } catch {}
   return Response.redirect(target, 302);
 }
-
 export default {
   async fetch(request, env) {
     try {
@@ -186,6 +230,7 @@ export default {
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
 
+    if (method === "GET" && pathname === "/favicon.ico") return serveFavicon();
     if (method === "GET" && pathname === "/") return handleHome();
 
     if (method === "POST" && pathname === "/api/shorten") {
@@ -196,8 +241,15 @@ export default {
     if (method === "GET" && pathname.startsWith("/api/")) return handleApi(bindings, pathname);
 
     if (method === "GET" && pathname.length > 1) {
+      const segments = pathname.split("/").filter(Boolean);
+      if (segments[0] === "go" && segments[1]) {
+        const slug = segments[1];
+        const base = `${url.protocol}//${url.host}/`;
+        return handleGo(bindings, slug, base);
+      }
       const slug = pathname.slice(1);
-      return handleRedirect(bindings, slug);
+      const base = `${url.protocol}//${url.host}/`;
+      return handleRedirect(bindings, slug, base, request);
     }
 
     return errorJson("Route not found", 404);
