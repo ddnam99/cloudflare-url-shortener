@@ -144,10 +144,14 @@ async function handleShorten(bindings: EnvBindings, base: string, request: Reque
   };
   await insertRecord(bindings, record);
   await bindings.KV.put(slug, normalized, { expirationTtl: CACHE_TTL_SECONDS });
+  try {
+    const info = getClientInfo(request);
+    await insertCreationEvent(bindings, slug, info);
+  } catch {}
   return json({ slug, url: normalized, short_url: base + slug }, 201);
 }
 
-async function handleApi(bindings: EnvBindings, pathname: string): Promise<Response> {
+async function handleApi(bindings: EnvBindings, pathname: string, request?: Request): Promise<Response> {
   if (pathname === "/api/health") {
     try {
       const one = await bindings.DB.prepare("SELECT 1 as ok").first<{ ok: number }>();
@@ -157,6 +161,28 @@ async function handleApi(bindings: EnvBindings, pathname: string): Promise<Respo
       const message = e instanceof Error ? e.message : "Unknown error";
       return errorJson(`Health check failed: ${message}`, 500);
     }
+  }
+  if (pathname === "/api/report") {
+    if (!request || request.method.toUpperCase() !== "POST") {
+      return new Response(JSON.stringify({ error: "Method Not Allowed" }), { status: 405, headers: { "content-type": "application/json; charset=utf-8" } });
+    }
+    let body: { slug?: string; reason?: string };
+    try {
+      body = (await request.json()) as { slug?: string; reason?: string };
+    } catch {
+      return errorJson("Invalid JSON body", 400);
+    }
+    const slug = (body.slug || "").trim();
+    const reason = (body.reason || "").trim();
+    if (!slug) return errorJson("Missing slug", 422);
+    const exists = await findBySlug(bindings, slug);
+    const meta = getClientInfo(request);
+    try {
+      await insertAbuseReport(bindings, { slug, reason, meta });
+    } catch {
+      return errorJson("Failed to save report", 500);
+    }
+    return json({ ok: true, exists: !!exists });
   }
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 2 && parts[0] === "api") {
@@ -172,6 +198,27 @@ async function handleApi(bindings: EnvBindings, pathname: string): Promise<Respo
   return errorJson("Invalid API route", 404);
 }
 
+async function insertAbuseReport(env: EnvBindings, input: { slug: string; reason: string; meta: ReturnType<typeof getClientInfo> }): Promise<void> {
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS abuse_reports (id TEXT PRIMARY KEY, slug TEXT NOT NULL, reason TEXT, reporter_ip TEXT, country TEXT, city TEXT, region TEXT, continent TEXT, timezone TEXT, user_agent TEXT, created_at INTEGER NOT NULL)"
+  ).run();
+  const stmt = env.DB.prepare(
+    "INSERT INTO abuse_reports (id, slug, reason, reporter_ip, country, city, region, continent, timezone, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).bind(
+    crypto.randomUUID(),
+    input.slug,
+    input.reason,
+    input.meta.ip,
+    input.meta.country,
+    input.meta.city,
+    input.meta.region,
+    input.meta.continent,
+    input.meta.timezone,
+    input.meta.ua,
+    Date.now()
+  );
+  await stmt.run();
+}
 function isBot(request: Request): boolean {
   const ua = request.headers.get("user-agent") || "";
   const bots = ["Slackbot", "Twitterbot", "facebookexternalhit", "Discordbot", "WhatsApp", "TelegramBot", "LinkedInBot"];
@@ -179,6 +226,66 @@ function isBot(request: Request): boolean {
   return request.method === "HEAD";
 }
 
+function getClientInfo(request: Request): {
+  ip: string;
+  ua: string;
+  country: string;
+  city: string;
+  region: string;
+  continent: string;
+  timezone: string;
+  latitude: string;
+  longitude: string;
+  postalCode: string;
+} {
+  const ip = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "";
+  const ua = request.headers.get("user-agent") || "";
+  const cf: any = (request as any).cf || {};
+  return {
+    ip,
+    ua,
+    country: cf.country || "",
+    city: cf.city || "",
+    region: cf.region || "",
+    continent: cf.continent || "",
+    timezone: cf.timezone || "",
+    latitude: cf.latitude !== undefined ? String(cf.latitude) : "",
+    longitude: cf.longitude !== undefined ? String(cf.longitude) : "",
+    postalCode: cf.postalCode || "",
+  };
+}
+
+async function insertCreationEvent(env: EnvBindings, slug: string, info: {
+  ip: string;
+  ua: string;
+  country: string;
+  city: string;
+  region: string;
+  continent: string;
+  timezone: string;
+  latitude: string;
+  longitude: string;
+  postalCode: string;
+}): Promise<void> {
+  const stmt = env.DB.prepare(
+    "INSERT INTO creation_events (id, slug, ip, country, city, region, continent, timezone, latitude, longitude, postal_code, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).bind(
+    crypto.randomUUID(),
+    slug,
+    info.ip,
+    info.country,
+    info.city,
+    info.region,
+    info.continent,
+    info.timezone,
+    info.latitude,
+    info.longitude,
+    info.postalCode,
+    info.ua,
+    Date.now()
+  );
+  await stmt.run();
+}
 async function handleRedirect(bindings: EnvBindings, slug: string, shortBase: string, request: Request): Promise<Response> {
   const cached = await bindings.KV.get(slug);
   const target = cached ?? (await (async () => {
@@ -238,7 +345,7 @@ export default {
       return handleShorten(bindings, base, request);
     }
 
-    if (method === "GET" && pathname.startsWith("/api/")) return handleApi(bindings, pathname);
+    if (pathname.startsWith("/api/")) return handleApi(bindings, pathname, request);
 
     if (method === "GET" && pathname.length > 1) {
       const segments = pathname.split("/").filter(Boolean);

@@ -45,6 +45,8 @@ export function renderDisclaimerHtml(shortUrl: string, targetUrl: string, slug: 
         .link { color: var(--accent); text-decoration: none; }
         .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
         .secondary { background: #f3f4f6; color: var(--text); border: 1px solid #e5e7eb; }
+        a.btn::after, a.btn::before, .btn::after, .btn::before, .secondary::after, .secondary::before { content: none !important; display: none !important; background-image: none !important; }
+        .toast { margin-top: 10px; font-size: 12px; color: var(--muted); }
         .footer { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: center; color: var(--muted); font-size: 12px; }
         .footer a { color: var(--accent); text-decoration: none; }
       </style>
@@ -59,12 +61,31 @@ export function renderDisclaimerHtml(shortUrl: string, targetUrl: string, slug: 
           <div class="actions">
             <a class="btn" href="/go/${slug}">Continue</a>
             <a class="btn secondary" href="/">Back</a>
+            <button class="btn secondary" id="report">Report</button>
           </div>
+          <div class="toast" id="toast"></div>
         </div>
         <footer class="footer">
           <span>© ${year} Cloudflare URL Shortener</span>
         </footer>
       </div>
+      <script>
+        const reportBtn = document.getElementById('report');
+        const toast = document.getElementById('toast');
+        reportBtn?.addEventListener('click', async () => {
+          let reason = '';
+          try {
+            reason = window.prompt('Describe the issue (optional):') || '';
+          } catch {}
+          try {
+            const res = await fetch('/api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: '${slug}', reason }) });
+            const data = await res.json();
+            toast.textContent = res.ok ? 'Reported. Thank you.' : (data.error || 'Failed to report');
+          } catch {
+            toast.textContent = 'Network error';
+          }
+        });
+      </script>
     </body>
   </html>
   `;

@@ -41,6 +41,9 @@ export function renderNotFoundHtml(slug: string) {
         .muted { color: var(--muted); font-size: 12px; }
         .row { margin-top: 8px; }
         .btn { display: inline-block; margin-top: 12px; padding: 12px 16px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff; border-radius: 10px; text-decoration: none; }
+        .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .secondary { background: #f3f4f6; color: var(--text); border: 1px solid #e5e7eb; }
+        a.btn::after, a.btn::before, .btn::after, .btn::before, .secondary::after, .secondary::before { content: none !important; display: none !important; background-image: none !important; }
         .footer { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: center; color: var(--muted); font-size: 12px; }
         .footer a { color: var(--accent); text-decoration: none; }
         .slug { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f3f4f6; border: 1px solid #e5e7eb; padding: 4px 6px; border-radius: 6px; }
@@ -52,7 +55,9 @@ export function renderNotFoundHtml(slug: string) {
         <div class="card">
           <div class="row">Requested slug: <span class="slug">${slug}</span></div>
           <div class="row muted">This short link does not exist or has been removed.</div>
-          <a class="btn" href="/">Go Home</a>
+          <div class="actions">
+            <a class="btn" href="/">Go Home</a>
+          </div>
         </div>
         <footer class="footer">
           <span>© ${year} Cloudflare URL Shortener</span>
