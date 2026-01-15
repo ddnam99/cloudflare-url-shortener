@@ -105,15 +105,19 @@ export function renderHtml() {
           border-radius: 10px;
           border: 1px solid #e5e7eb;
           display: flex;
-          align-items: center;
-          justify-content: space-between;
+          align-items: flex-start;
+          flex-wrap: wrap;
           gap: 10px;
         }
         .alert.error { border-color: rgba(220,38,38,0.35); color: var(--error); background: #fff5f5; }
         .alert.success { border-color: rgba(22,163,74,0.35); color: var(--text); background: #f0fdf4; }
-        .link { color: var(--accent); text-decoration: none; }
-        .tools { display: flex; gap: 8px; }
+        .link { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; word-break: break-word; }
+        .tools { display: flex; gap: 8px; flex-wrap: wrap; }
         .tool { padding: 8px 10px; border-radius: 8px; background: #f3f4f6; color: var(--text); border: 1px solid #e5e7eb; cursor: pointer; }
+        @media (max-width: 600px) {
+          .alert { flex-direction: column; }
+          .tools { width: 100%; justify-content: flex-start; }
+        }
         .muted { color: var(--muted); font-size: 12px; }
         .history { margin-top: 18px; }
         .history h3 { margin: 0 0 8px 0; font-size: 14px; color: var(--muted); }
