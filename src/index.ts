@@ -2,6 +2,7 @@ import { renderHtml } from "./renderHtml";
 import { renderMetaHtml } from "./renderMeta";
 import { renderDisclaimerHtml } from "./renderDisclaimer";
 import { renderNotFoundHtml } from "./renderNotFound";
+import { renderLegalHtml } from "./renderLegal";
 
 type EnvBindings = {
   DB: D1Database;
@@ -339,6 +340,7 @@ export default {
 
     if (method === "GET" && pathname === "/favicon.ico") return serveFavicon();
     if (method === "GET" && pathname === "/") return handleHome();
+    if (method === "GET" && pathname === "/legal") return new Response(renderLegalHtml(), { headers: { "content-type": "text/html" } });
 
     if (method === "POST" && pathname === "/api/shorten") {
       const base = `${url.protocol}//${url.host}/`;

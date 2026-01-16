@@ -101,3 +101,9 @@ npm run deploy
 ## Troubleshooting
 - Error 1101 (exception thrown): check `/api/health` and verify IDs in `wrangler.json`.
 - Local dev EPERM: use `wrangler dev --remote` (see `npm run dev`).
+
+## Disclaimer
+This project is provided for educational and testing purposes. The author is not responsible for any misuse of the service, including but not limited to the shortening of malicious, phishing, or illegal URLs. Users are solely responsible for the content they generate and share.
+
+## License
+This project is licensed under the [MIT License](LICENSE).

@@ -1,4 +1,8 @@
-export function renderMetaHtml(shortUrl: string, targetUrl: string, slug: string) {
+export function renderMetaHtml(
+  shortUrl: string,
+  targetUrl: string,
+  slug: string
+) {
   const year = new Date().getFullYear();
   return `
   <!DOCTYPE html>
@@ -64,7 +68,7 @@ export function renderMetaHtml(shortUrl: string, targetUrl: string, slug: string
           <div class="row muted">This preview exists for link unfurl. We do not assume responsibility for the destination content.</div>
         </div>
         <footer class="footer">
-          <span>© ${year} Cloudflare URL Shortener</span>
+          <span>© ${year} NamDD URL Shortener · <a href="/legal">Legal</a> · <a href="https://github.com/ddnam99/cloudflare-url-shortener" target="_blank">GitHub</a></span>
         </footer>
       </div>
     </body>

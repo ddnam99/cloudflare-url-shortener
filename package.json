@@ -17,6 +17,7 @@
 		"wrangler": "^4.59.2"
 	},
 	"private": true,
+	"license": "MIT",
 	"scripts": {
 		"cf-typegen": "wrangler types",
 		"check": "tsc && wrangler deploy --dry-run",

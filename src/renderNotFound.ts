@@ -60,7 +60,7 @@ export function renderNotFoundHtml(slug: string) {
           </div>
         </div>
         <footer class="footer">
-          <span>© ${year} Cloudflare URL Shortener</span>
+          <span>© ${year} NamDD URL Shortener · <a href="/legal">Legal</a> · <a href="https://github.com/ddnam99/cloudflare-url-shortener" target="_blank">GitHub</a></span>
         </footer>
       </div>
     </body>

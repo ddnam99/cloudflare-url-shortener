@@ -1,4 +1,8 @@
-export function renderDisclaimerHtml(shortUrl: string, targetUrl: string, slug: string) {
+export function renderDisclaimerHtml(
+  shortUrl: string,
+  targetUrl: string,
+  slug: string
+) {
   const year = new Date().getFullYear();
   return `
   <!DOCTYPE html>
@@ -66,7 +70,7 @@ export function renderDisclaimerHtml(shortUrl: string, targetUrl: string, slug: 
           <div class="toast" id="toast"></div>
         </div>
         <footer class="footer">
-          <span>© ${year} Cloudflare URL Shortener</span>
+          <span>© ${year} NamDD URL Shortener · <a href="/legal">Legal</a> · <a href="https://github.com/ddnam99/cloudflare-url-shortener" target="_blank">GitHub</a></span>
         </footer>
       </div>
       <script>

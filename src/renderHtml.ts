@@ -168,7 +168,7 @@ export function renderHtml() {
           <div class="muted">By using this tool you agree not to shorten malicious or harmful links.</div>
         </div>
         <footer class="footer">
-          <span>© ${year} Cloudflare URL Shortener</span>
+          <span>© ${year} NamDD URL Shortener · <a href="/legal">Legal</a> · <a href="https://github.com/ddnam99/cloudflare-url-shortener" target="_blank">GitHub</a></span>
         </footer>
       </div>
       <script>
