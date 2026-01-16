@@ -75,10 +75,15 @@ export function renderDisclaimer(shortUrl: string, targetUrl: string, slug: stri
         const reportBtn = document.getElementById('report');
         const toast = document.getElementById('toast');
         reportBtn?.addEventListener('click', async () => {
-          let reason = '';
+          let input = null;
           try {
-            reason = window.prompt('Describe the issue (optional):') || '';
+            input = window.prompt('Describe the issue (optional):');
           } catch {}
+          if (input === null) {
+            toast.textContent = 'Report canceled';
+            return;
+          }
+          const reason = input.trim();
           try {
             const res = await fetch('/api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: '${slug}', reason }) });
             const data = await res.json();
@@ -92,4 +97,3 @@ export function renderDisclaimer(shortUrl: string, targetUrl: string, slug: stri
   </html>
   `;
 }
-
