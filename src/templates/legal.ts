@@ -1,4 +1,4 @@
-export function renderLegalHtml() {
+export function renderLegal(baseUrl: string) {
   const year = new Date().getFullYear();
   return `
   <!DOCTYPE html>
@@ -8,7 +8,16 @@ export function renderLegalHtml() {
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Legal · Data & Privacy · Disclaimer</title>
       <meta name="description" content="Legal information including Data & Privacy and Disclaimer for the URL shortener service." />
+      <meta name="robots" content="index,follow" />
       <link rel="icon" href="/favicon.ico" sizes="any">
+      <link rel="canonical" href="${baseUrl}legal">
+      <meta property="og:title" content="Legal · Data & Privacy · Disclaimer" />
+      <meta property="og:description" content="Legal information including Data & Privacy and Disclaimer for the URL shortener service." />
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content="${baseUrl}legal" />
+      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:title" content="Legal · Data & Privacy · Disclaimer" />
+      <meta name="twitter:description" content="Legal information including Data & Privacy and Disclaimer for the URL shortener service." />
       <link rel="stylesheet" type="text/css" href="https://static.integrations.cloudflare.com/styles.css">
       <style>
         :root {
@@ -50,6 +59,15 @@ export function renderLegalHtml() {
         .secondary { background: #f3f4f6; color: var(--text); border: 1px solid #e5e7eb; }
         a.btn::after, a.btn::before, .btn::after, .btn::before, .secondary::after, .secondary::before { content: none !important; display: none !important; background-image: none !important; }
       </style>
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "name": "Legal",
+          "url": "${baseUrl}legal",
+          "description": "Legal information including Data & Privacy and Disclaimer for the URL shortener service."
+        }
+      </script>
     </head>
     <body>
       <div class="wrap">
@@ -83,3 +101,4 @@ export function renderLegalHtml() {
   </html>
   `;
 }
+

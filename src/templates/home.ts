@@ -1,4 +1,4 @@
-export function renderHtml() {
+export function renderHome(baseUrl: string) {
   const year = new Date().getFullYear();
   return `
   <!DOCTYPE html>
@@ -9,8 +9,17 @@ export function renderHtml() {
       <meta name="description" content="Free URL shortening service. Users are responsible for shortened links; we do not accept liability for malicious or harmful content." />
       <meta name="disclaimer" content="This is a free service. We do not assume responsibility for any malicious, harmful, or abusive content linked via shortened URLs created by users." />
       <meta name="referrer" content="no-referrer" />
+      <meta name="robots" content="index,follow" />
       <title>Cloudflare URL Shortener</title>
       <link rel="icon" href="/favicon.ico" sizes="any">
+      <link rel="canonical" href="${baseUrl}">
+      <meta property="og:title" content="Cloudflare URL Shortener" />
+      <meta property="og:description" content="Free URL shortening service powered by Cloudflare Workers, D1 and KV." />
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content="${baseUrl}" />
+      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:title" content="Cloudflare URL Shortener" />
+      <meta name="twitter:description" content="Free URL shortening service powered by Cloudflare Workers, D1 and KV." />
       <link rel="stylesheet" type="text/css" href="https://static.integrations.cloudflare.com/styles.css">
       <style>
         :root {
@@ -135,6 +144,14 @@ export function renderHtml() {
         }
         .footer a { color: var(--accent); text-decoration: none; }
       </style>
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "NamDD URL Shortener",
+          "url": "${baseUrl}"
+        }
+      </script>
     </head>
     <body>
       <div class="wrap">
@@ -263,3 +280,4 @@ export function renderHtml() {
   </html>
   `;
 }
+

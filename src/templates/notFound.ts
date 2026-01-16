@@ -1,4 +1,4 @@
-export function renderNotFoundHtml(slug: string) {
+export function renderNotFound(slug: string) {
   const year = new Date().getFullYear();
   return `
   <!DOCTYPE html>
@@ -8,7 +8,9 @@ export function renderNotFoundHtml(slug: string) {
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Short Link Not Found</title>
       <meta name="description" content="The requested short link does not exist." />
+      <meta name="robots" content="noindex,nofollow" />
       <link rel="icon" href="/favicon.ico" sizes="any">
+      <link rel="canonical" href="/${slug}">
       <link rel="stylesheet" type="text/css" href="https://static.integrations.cloudflare.com/styles.css">
       <style>
         :root {
@@ -67,3 +69,4 @@ export function renderNotFoundHtml(slug: string) {
   </html>
   `;
 }
+
